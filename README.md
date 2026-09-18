@@ -35,6 +35,19 @@ bun /path/to/notæ/server.ts --no-open
 When working on Notæ itself, `bun start` serves Markdown from the repository
 root.
 
+## Development
+
+The browser and server sources are TypeScript. The quality gate runs Oxfmt,
+Oxlint, strict TypeScript checking, and the Bun test suite:
+
+```sh
+just format
+just check
+just test
+```
+
+`just build` runs the full quality gate before producing the executable.
+
 ## Build
 
 ```sh

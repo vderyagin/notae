@@ -1,16 +1,28 @@
 {
   "name": "notae",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "description": "A local browser for Markdown collections",
   "type": "module",
   "scripts": {
-    "build": "just build",
+    "build": "bun run check && bun run build.ts",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun test",
     "start": "bun run server.ts",
-    "dev": "bun --watch run server.ts"
+    "dev": "bun --watch run server.ts",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "highlight.js": "^11.12.0",
     "mermaid": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "oxfmt": "^0.68.0",
+    "oxlint": "^1.83.0",
+    "typescript": "^7.0.2"
   }
 }

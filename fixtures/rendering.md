@@ -7,7 +7,7 @@ open the [nested document](linked.md#destination), or inspect the local image be
 
 ## Typography
 
-Plain text with **bold**, *italic*, ~~strikethrough~~, `inline code`, and a
+Plain text with **bold**, _italic_, ~~strikethrough~~, `inline code`, and a
 [remote link](https://example.com). The page deliberately has enough sections
 to exercise active and visible table-of-contents states.
 
@@ -25,11 +25,11 @@ The drawer should have a bordered surface and a distinct summary bar.
 
 ## Sortable and resizable table
 
-| Name | Count | Language |
-|:-----|------:|:---------|
-| gamma | 300 | Rust |
-| alpha | 10 | JavaScript |
-| beta | 2 | Python |
+| Name  | Count | Language   |
+| :---- | ----: | :--------- |
+| gamma |   300 | Rust       |
+| alpha |    10 | JavaScript |
+| beta  |     2 | Python     |
 
 The headers sort in both directions. Their right edges can be dragged or moved
 with the arrow keys while the separator has focus.

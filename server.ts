@@ -29,9 +29,7 @@ type StaticFile = { body: string; type: string };
 
 async function loadStaticFiles(): Promise<Map<string, StaticFile>> {
   if (typeof NOTAE_WEB_HTML === "string") {
-    return new Map([
-      ["/index.html", { body: NOTAE_WEB_HTML, type: "text/html; charset=utf-8" }],
-    ]);
+    return new Map([["/index.html", { body: NOTAE_WEB_HTML, type: "text/html; charset=utf-8" }]]);
   }
 
   const webDir = new URL("./web/", import.meta.url);
@@ -61,7 +59,7 @@ function publishTreeChange() {
   for (const client of treeEventClients) {
     try {
       client.enqueue(message);
-    } catch (_error) {
+    } catch {
       treeEventClients.delete(client);
     }
   }
@@ -146,7 +144,7 @@ async function safeResolveRoot(relativePath: string) {
   try {
     const canonical = await realpath(resolved);
     return canonical.startsWith(canonicalRootDirWithSep) ? canonical : null;
-  } catch (_error) {
+  } catch {
     return null;
   }
 }
@@ -163,9 +161,7 @@ function serveStatic(pathname: string) {
 function tryServeStatic(pathname: string) {
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
   const file = staticFiles.get(requestedPath);
-  return file
-    ? new Response(file.body, { headers: { "Content-Type": file.type } })
-    : null;
+  return file ? new Response(file.body, { headers: { "Content-Type": file.type } }) : null;
 }
 
 function usage() {
@@ -178,6 +174,7 @@ function parseArgs(args: string[]) {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (arg === undefined) continue;
     if (arg === "--no-open") {
       shouldOpen = false;
       continue;
@@ -291,7 +288,7 @@ const server = serve({
         return new Response("Forbidden", { status: 403 });
       }
       const file = Bun.file(resolved);
-      if (!await file.exists()) {
+      if (!(await file.exists())) {
         return new Response("Not found", { status: 404 });
       }
       return new Response(file, {
@@ -314,7 +311,7 @@ const server = serve({
       }
 
       const text = await Bun.file(resolved).text();
-      const html = Bun.markdown.html(text, { headingIds: true });
+      const html = Bun.markdown.html(text);
       return Response.json({ html, path: relPath });
     }
 
