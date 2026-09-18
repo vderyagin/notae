@@ -1,5 +1,7 @@
 # Notæ
 
+[![CI](https://github.com/vderyagin/notae/actions/workflows/ci.yml/badge.svg)](https://github.com/vderyagin/notae/actions/workflows/ci.yml)
+
 A local browser for Markdown collections.
 
 Notæ scans the current directory recursively, presents its Markdown files as a
@@ -47,6 +49,16 @@ just test
 ```
 
 `just build` runs the full quality gate before producing the executable.
+
+## Releases
+
+Push a `v*` tag to run the checks, build Notæ, and publish a GitHub release with
+the executable bundle and its SHA-256 checksum:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## Build
 
