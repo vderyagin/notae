@@ -9,3 +9,6 @@ test:
 
 build:
     bun run build
+
+build-standalone:
+    bun run build:standalone

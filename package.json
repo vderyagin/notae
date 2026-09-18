@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "bun run check && bun run build.ts",
+    "build:standalone": "bun run check && bun run build.ts --standalone",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun test",
     "start": "bun run server.ts",
     "dev": "bun --watch run server.ts",

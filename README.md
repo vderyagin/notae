@@ -50,6 +50,15 @@ just test
 
 `just build` runs the full quality gate before producing the executable.
 
+To embed the Bun runtime and produce a native standalone executable instead:
+
+```sh
+just build-standalone
+```
+
+The standalone executable is written to `dist/notæ-standalone` and does not
+require Bun at runtime.
+
 ## Releases
 
 Push a `v*` tag to run the checks, build Notæ, and publish a GitHub release with
