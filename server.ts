@@ -1,7 +1,11 @@
+#!/usr/bin/env bun
+
 import { serve } from "bun";
 import { readdir } from "node:fs/promises";
-import { dirname, extname, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { extname, join, resolve, sep } from "node:path";
+import appCss from "./web/app.css" with { type: "text" };
+import appJs from "./web/app.js" with { type: "text" };
+import indexHtml from "./web/index.html" with { type: "text" };
 
 type TreeNode = {
   type: "dir" | "file";
@@ -11,22 +15,16 @@ type TreeNode = {
 };
 
 const rootDir = resolve(process.cwd());
-const serverDir = dirname(fileURLToPath(import.meta.url));
-const publicDir = resolve(serverDir, "public");
-const publicDirWithSep = publicDir.endsWith(sep) ? publicDir : publicDir + sep;
 const rootDirWithSep = rootDir.endsWith(sep) ? rootDir : rootDir + sep;
 
 const ignoredDirs = new Set([".git", "node_modules", ".bun", "dist", "build", "out"]);
 const markdownExts = new Set([".md", ".markdown"]);
 
-const mimeByExt: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".ico": "image/x-icon",
-};
+const staticFiles = new Map([
+  ["/index.html", { body: indexHtml, type: "text/html; charset=utf-8" }],
+  ["/app.css", { body: appCss, type: "text/css; charset=utf-8" }],
+  ["/app.js", { body: appJs, type: "text/javascript; charset=utf-8" }],
+]);
 
 function toPosix(path: string) {
   return path.split(sep).join("/");
@@ -94,43 +92,79 @@ function safeResolveRoot(relativePath: string) {
   return resolved;
 }
 
-async function serveStatic(pathname: string) {
+function serveStatic(pathname: string) {
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
-  const resolved = resolve(publicDir, "." + requestedPath);
-  if (!resolved.startsWith(publicDirWithSep)) {
+  const file = staticFiles.get(requestedPath);
+  if (!file) {
     return new Response("Not found", { status: 404 });
   }
-
-  const file = Bun.file(resolved);
-  if (!(await file.exists())) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  const ext = extname(resolved).toLowerCase();
-  const contentType = mimeByExt[ext] ?? file.type ?? "application/octet-stream";
-  return new Response(file, { headers: { "Content-Type": contentType } });
+  return new Response(file.body, { headers: { "Content-Type": file.type } });
 }
 
-async function tryServeStatic(pathname: string) {
+function tryServeStatic(pathname: string) {
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
-  const resolved = resolve(publicDir, "." + requestedPath);
-  if (!resolved.startsWith(publicDirWithSep)) {
-    return null;
-  }
-  const file = Bun.file(resolved);
-  if (!(await file.exists())) {
-    return null;
-  }
-  const ext = extname(resolved).toLowerCase();
-  const contentType = mimeByExt[ext] ?? file.type ?? "application/octet-stream";
-  return new Response(file, { headers: { "Content-Type": contentType } });
+  const file = staticFiles.get(requestedPath);
+  return file
+    ? new Response(file.body, { headers: { "Content-Type": file.type } })
+    : null;
 }
 
-const argPort = Number(process.argv[2]);
+function usage() {
+  console.log("Usage: notæ [--port PORT] [--no-open]");
+}
+
+function parseArgs(args: string[]) {
+  let port: number | undefined;
+  let shouldOpen = true;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--no-open") {
+      shouldOpen = false;
+      continue;
+    }
+    if (arg === "--help" || arg === "-h") {
+      usage();
+      process.exit(0);
+    }
+    if (arg === "--port") {
+      port = Number(args[index + 1]);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--port=")) {
+      port = Number(arg.slice("--port=".length));
+      continue;
+    }
+    console.error(`Unknown option: ${arg}`);
+    usage();
+    process.exit(1);
+  }
+
+  if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+    console.error("Invalid port");
+    usage();
+    process.exit(1);
+  }
+
+  return { port, shouldOpen };
+}
+
+function openBrowser(url: string) {
+  const command =
+    process.platform === "darwin"
+      ? ["open", url]
+      : process.platform === "win32"
+        ? ["cmd", "/c", "start", "", url]
+        : ["xdg-open", url];
+  Bun.spawn(command, { stdout: "ignore", stderr: "ignore" });
+}
+
+const options = parseArgs(process.argv.slice(2));
 const envPort = Number(process.env.PORT);
 const port =
-  Number.isInteger(argPort) && argPort > 0 && argPort < 65536
-    ? argPort
+  options.port !== undefined
+    ? options.port
     : Number.isInteger(envPort) && envPort > 0 && envPort < 65536
       ? envPort
       : 3000;
@@ -186,7 +220,7 @@ serve({
       return Response.json({ html, path: relPath });
     }
 
-    const staticResponse = await tryServeStatic(url.pathname);
+    const staticResponse = tryServeStatic(url.pathname);
     if (staticResponse) {
       return staticResponse;
     }
@@ -199,4 +233,6 @@ serve({
   },
 });
 
-console.log(`Notæ running on http://localhost:${port}`);
+const url = `http://localhost:${port}`;
+console.log(`Notæ running on ${url}`);
+if (options.shouldOpen) openBrowser(url);

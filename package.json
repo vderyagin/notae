@@ -5,6 +5,7 @@
   "description": "A local browser for Markdown collections",
   "type": "module",
   "scripts": {
+    "build": "just build",
     "start": "bun run server.ts",
     "dev": "bun --watch run server.ts"
   }

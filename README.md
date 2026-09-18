@@ -14,14 +14,29 @@ contents.
 
 ```sh
 cd /path/to/markdown
-bun /path/to/notæ/server.ts
+bun /path/to/notæ/server.ts --port 8080
 ```
 
-The default port is `3000`. Pass another port as the first argument:
+The default port is `3000`. Notæ opens it in the default browser. Suppress that
+with `--no-open`:
 
 ```sh
-bun /path/to/notæ/server.ts 8080
+bun /path/to/notæ/server.ts --no-open
 ```
 
 When working on Notæ itself, `bun start` serves Markdown from the repository
 root.
+
+## Build
+
+```sh
+just build
+```
+
+This produces the single executable file `dist/notæ`. It contains the web UI
+but still requires Bun to be installed:
+
+```sh
+cd /path/to/markdown
+/path/to/notæ/dist/notæ --port 8080 --no-open
+```
