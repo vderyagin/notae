@@ -33,8 +33,9 @@ root.
 just build
 ```
 
-This produces the single executable file `dist/notæ`. It contains the web UI
-but still requires Bun to be installed:
+This builds and minifies the web UI into a self-contained HTML document, then
+embeds it in the single executable file `dist/notæ`. The executable still
+requires Bun to be installed:
 
 ```sh
 cd /path/to/markdown

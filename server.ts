@@ -3,9 +3,8 @@
 import { serve } from "bun";
 import { readdir } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
-import appCss from "./web/app.css" with { type: "text" };
-import appJs from "./web/app.js" with { type: "text" };
-import indexHtml from "./web/index.html" with { type: "text" };
+
+declare const NOTAE_WEB_HTML: string;
 
 type TreeNode = {
   type: "dir" | "file";
@@ -20,11 +19,29 @@ const rootDirWithSep = rootDir.endsWith(sep) ? rootDir : rootDir + sep;
 const ignoredDirs = new Set([".git", "node_modules", ".bun", "dist", "build", "out"]);
 const markdownExts = new Set([".md", ".markdown"]);
 
-const staticFiles = new Map([
-  ["/index.html", { body: indexHtml, type: "text/html; charset=utf-8" }],
-  ["/app.css", { body: appCss, type: "text/css; charset=utf-8" }],
-  ["/app.js", { body: appJs, type: "text/javascript; charset=utf-8" }],
-]);
+type StaticFile = { body: string; type: string };
+
+async function loadStaticFiles(): Promise<Map<string, StaticFile>> {
+  if (typeof NOTAE_WEB_HTML === "string") {
+    return new Map([
+      ["/index.html", { body: NOTAE_WEB_HTML, type: "text/html; charset=utf-8" }],
+    ]);
+  }
+
+  const webDir = new URL("./web/", import.meta.url);
+  const [indexHtml, appCss, appJs] = await Promise.all([
+    Bun.file(new URL("index.html", webDir)).text(),
+    Bun.file(new URL("app.css", webDir)).text(),
+    Bun.file(new URL("app.js", webDir)).text(),
+  ]);
+  return new Map([
+    ["/index.html", { body: indexHtml, type: "text/html; charset=utf-8" }],
+    ["/app.css", { body: appCss, type: "text/css; charset=utf-8" }],
+    ["/app.js", { body: appJs, type: "text/javascript; charset=utf-8" }],
+  ]);
+}
+
+const staticFiles = await loadStaticFiles();
 
 function toPosix(path: string) {
   return path.split(sep).join("/");
@@ -169,7 +186,7 @@ const port =
       ? envPort
       : 3000;
 
-serve({
+const server = serve({
   port,
   async fetch(req) {
     const url = new URL(req.url);
@@ -233,6 +250,7 @@ serve({
   },
 });
 
-const url = `http://localhost:${port}`;
+server.ref();
+const url = server.url.toString().replace(/\/$/, "");
 console.log(`Notæ running on ${url}`);
 if (options.shouldOpen) openBrowser(url);
