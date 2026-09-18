@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 
 import { serve } from "bun";
-import { watch } from "node:fs";
 import { readdir, realpath } from "node:fs/promises";
-import { extname, join, resolve, sep } from "node:path";
+import { extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { watch } from "chokidar";
 
 declare const NOTAE_WEB_HTML: string;
 
@@ -65,11 +65,19 @@ function publishTreeChange() {
   }
 }
 
-const treeWatcher = watch(rootDir, { recursive: true }, (_eventType, filename) => {
-  if (!filename) return;
-  const relativePath = toPosix(String(filename));
-  if (relativePath.split("/").some((part) => ignoredDirs.has(part))) return;
+const treeWatcher = watch(rootDir, {
+  ignored(path) {
+    const relativePath = relative(rootDir, path);
+    return relativePath.split(sep).some((part) => ignoredDirs.has(part));
+  },
+  ignoreInitial: true,
+  followSymlinks: false,
+  usePolling: false,
+  atomic: false,
+});
 
+treeWatcher.on("all", (event, path) => {
+  if (event !== "addDir" && event !== "unlinkDir" && !isMarkdown(path)) return;
   clearTimeout(treeChangeTimer);
   treeChangeTimer = setTimeout(publishTreeChange, 100);
 });
