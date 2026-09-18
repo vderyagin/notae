@@ -34,10 +34,14 @@ jobs:
       - uses: ./.github/actions/setup-bun
       - name: Build executable bundle
         run: bun run build.ts
+      - name: Build standalone executable
+        run: bun run build.ts --standalone
       - name: Package artifact
         run: |
           tar -czf dist/notae.tar.gz -C dist notæ
           sha256sum dist/notae.tar.gz > dist/notae.tar.gz.sha256
+          tar -cJf dist/notae-standalone-linux-x64.tar.xz -C dist notæ-standalone
+          sha256sum dist/notae-standalone-linux-x64.tar.xz > dist/notae-standalone-linux-x64.tar.xz.sha256
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
@@ -45,6 +49,8 @@ jobs:
           path: |
             dist/notae.tar.gz
             dist/notae.tar.gz.sha256
+            dist/notae-standalone-linux-x64.tar.xz
+            dist/notae-standalone-linux-x64.tar.xz.sha256
           if-no-files-found: error
 
   release:
@@ -68,6 +74,8 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             dist/notae.tar.gz \
             dist/notae.tar.gz.sha256 \
+            dist/notae-standalone-linux-x64.tar.xz \
+            dist/notae-standalone-linux-x64.tar.xz.sha256 \
             --repo "${GH_REPO}" \
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \

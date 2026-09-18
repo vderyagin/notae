@@ -12,7 +12,9 @@ relative navigation between Markdown files.
 
 ## Requirements
 
-- [Bun](https://bun.sh/)
+[Bun](https://bun.sh/) is required when running from source or using the Bun
+executable bundle. The Linux x64 standalone executable has no runtime
+dependencies.
 
 ## Run
 
@@ -61,8 +63,14 @@ require Bun at runtime.
 
 ## Releases
 
-Push a `v*` tag to run the checks, build Notæ, and publish a GitHub release with
-the executable bundle and its SHA-256 checksum:
+[Releases](https://github.com/vderyagin/notae/releases) provide both executable
+types:
+
+- `notae.tar.gz` — the smaller, cross-platform bundle; requires Bun at runtime.
+- `notae-standalone-linux-x64.tar.xz` — a Linux x64 executable with Bun embedded.
+
+Each download includes a matching SHA-256 checksum. Push a `v*` tag to run the
+checks, build both types, and publish a GitHub release:
 
 ```sh
 git tag v0.1.0
