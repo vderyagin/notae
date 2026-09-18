@@ -19,6 +19,8 @@ let renderGeneration = 0;
 let mermaidSequence = 0;
 let tocHeadings = [];
 let tocUpdateScheduled = false;
+const collapsedDirectoryStorageKey = "notae:collapsed-directories";
+const collapsedDirectories = loadCollapsedDirectories();
 
 mermaid.initialize({
   startOnLoad: false,
@@ -48,15 +50,35 @@ const escapeHtml = (value) =>
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+function loadCollapsedDirectories() {
+  try {
+    const paths = JSON.parse(localStorage.getItem(collapsedDirectoryStorageKey) || "[]");
+    return new Set(Array.isArray(paths) ? paths : []);
+  } catch (_error) {
+    return new Set();
+  }
+}
+
+function saveCollapsedDirectories() {
+  try {
+    localStorage.setItem(collapsedDirectoryStorageKey, JSON.stringify([...collapsedDirectories]));
+  } catch (_error) {
+    // Folding still works for the current page when storage is unavailable.
+  }
+}
+
 function treeToHtml(nodes, isRoot = false) {
   const items = nodes.map((node) => {
     if (node.type === "dir") {
+      const isCollapsed = !currentQuery && collapsedDirectories.has(node.path);
       return `<li class="dir">
-        <div class="dir-label">
+        <button class="dir-label" data-dir="${escapeHtml(node.path)}" aria-expanded="${!isCollapsed}">
           <span class="tree-icon dir-icon" aria-hidden="true"></span>
           <span class="dir-name">${escapeHtml(node.name)}</span>
+        </button>
+        <div class="dir-children"${isCollapsed ? " hidden" : ""}>
+          ${treeToHtml(node.children || [])}
         </div>
-        ${treeToHtml(node.children || [])}
       </li>`;
     }
 
@@ -789,6 +811,17 @@ function scheduleTocUpdate() {
 }
 
 treeEl.addEventListener("click", (event) => {
+  const directory = event.target.closest("button[data-dir]");
+  if (directory) {
+    if (currentQuery) return;
+    const path = directory.dataset.dir;
+    if (collapsedDirectories.has(path)) collapsedDirectories.delete(path);
+    else collapsedDirectories.add(path);
+    saveCollapsedDirectories();
+    renderTree();
+    return;
+  }
+
   const button = event.target.closest("button[data-file]");
   if (button) void openFile(button.dataset.file);
 });
