@@ -4,13 +4,21 @@ A local browser for Markdown collections.
 
 Notæ scans the current directory recursively, presents its Markdown files as a
 tree, renders them in the browser, and provides full-text search and a table of
-contents.
+contents. Rendered documents include syntax highlighting, interactive Mermaid
+diagrams, sortable and resizable tables, code-copy controls, local assets, and
+relative navigation between Markdown files.
 
 ## Requirements
 
 - [Bun](https://bun.sh/)
 
 ## Run
+
+Install the bundled browser dependencies once when running from source:
+
+```sh
+bun install
+```
 
 ```sh
 cd /path/to/markdown
@@ -35,7 +43,7 @@ just build
 
 This builds and minifies the web UI into a self-contained HTML document, then
 embeds it in the single executable file `dist/notæ`. The executable still
-requires Bun to be installed:
+requires Bun to be installed, but does not require `node_modules` at runtime:
 
 ```sh
 cd /path/to/markdown

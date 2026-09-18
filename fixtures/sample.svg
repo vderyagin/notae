@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180" role="img" aria-labelledby="title description">
+  <title id="title">Notæ local asset fixture</title>
+  <desc id="description">A blue diagram showing Markdown flowing into an enhanced preview.</desc>
+  <rect width="720" height="180" rx="12" fill="#f6f8fa"/>
+  <rect x="48" y="54" width="180" height="72" rx="8" fill="#fff" stroke="#dfe2e5"/>
+  <text x="138" y="97" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="20" fill="#454545">Markdown</text>
+  <path d="M248 90h176" stroke="#0077aa" stroke-width="4"/>
+  <path d="m410 78 18 12-18 12" fill="none" stroke="#0077aa" stroke-width="4"/>
+  <rect x="448" y="54" width="224" height="72" rx="8" fill="#0077aa"/>
+  <text x="560" y="97" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="20" fill="#fff">Enhanced preview</text>
+</svg>

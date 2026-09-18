@@ -1,8 +1,10 @@
 #!/usr/bin/env bun
 
 import { serve } from "bun";
-import { readdir } from "node:fs/promises";
+import { watch } from "node:fs";
+import { readdir, realpath } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 declare const NOTAE_WEB_HTML: string;
 
@@ -15,6 +17,10 @@ type TreeNode = {
 
 const rootDir = resolve(process.cwd());
 const rootDirWithSep = rootDir.endsWith(sep) ? rootDir : rootDir + sep;
+const canonicalRootDir = await realpath(rootDir);
+const canonicalRootDirWithSep = canonicalRootDir.endsWith(sep)
+  ? canonicalRootDir
+  : canonicalRootDir + sep;
 
 const ignoredDirs = new Set([".git", "node_modules", ".bun", "dist", "build", "out"]);
 const markdownExts = new Set([".md", ".markdown"]);
@@ -29,19 +35,50 @@ async function loadStaticFiles(): Promise<Map<string, StaticFile>> {
   }
 
   const webDir = new URL("./web/", import.meta.url);
-  const [indexHtml, appCss, appJs] = await Promise.all([
-    Bun.file(new URL("index.html", webDir)).text(),
-    Bun.file(new URL("app.css", webDir)).text(),
-    Bun.file(new URL("app.js", webDir)).text(),
-  ]);
+  const webPath = fileURLToPath(webDir);
+  const webBuild = await Bun.build({
+    entrypoints: [fileURLToPath(new URL("index.html", webDir))],
+    root: webPath,
+    target: "browser",
+    compile: true,
+    minify: true,
+    throw: true,
+  });
+  const htmlOutput = webBuild.outputs.find((output) => output.path.endsWith(".html"));
+  if (!htmlOutput) throw new Error("Web build did not produce HTML");
   return new Map([
-    ["/index.html", { body: indexHtml, type: "text/html; charset=utf-8" }],
-    ["/app.css", { body: appCss, type: "text/css; charset=utf-8" }],
-    ["/app.js", { body: appJs, type: "text/javascript; charset=utf-8" }],
+    ["/index.html", { body: await htmlOutput.text(), type: "text/html; charset=utf-8" }],
   ]);
 }
 
 const staticFiles = await loadStaticFiles();
+const treeEventClients = new Set<ReadableStreamDefaultController<Uint8Array>>();
+const eventEncoder = new TextEncoder();
+let treeChangeTimer: ReturnType<typeof setTimeout> | undefined;
+
+function publishTreeChange() {
+  const message = eventEncoder.encode("event: tree\ndata: changed\n\n");
+  for (const client of treeEventClients) {
+    try {
+      client.enqueue(message);
+    } catch (_error) {
+      treeEventClients.delete(client);
+    }
+  }
+}
+
+const treeWatcher = watch(rootDir, { recursive: true }, (_eventType, filename) => {
+  if (!filename) return;
+  const relativePath = toPosix(String(filename));
+  if (relativePath.split("/").some((part) => ignoredDirs.has(part))) return;
+
+  clearTimeout(treeChangeTimer);
+  treeChangeTimer = setTimeout(publishTreeChange, 100);
+});
+
+treeWatcher.on("error", (error) => {
+  console.error("Could not watch the Markdown tree", error);
+});
 
 function toPosix(path: string) {
   return path.split(sep).join("/");
@@ -101,12 +138,17 @@ async function listMarkdownFiles(absDir: string, relDir: string, acc: string[]) 
   }
 }
 
-function safeResolveRoot(relativePath: string) {
+async function safeResolveRoot(relativePath: string) {
   const resolved = resolve(rootDir, relativePath);
   if (!resolved.startsWith(rootDirWithSep)) {
     return null;
   }
-  return resolved;
+  try {
+    const canonical = await realpath(resolved);
+    return canonical.startsWith(canonicalRootDirWithSep) ? canonical : null;
+  } catch (_error) {
+    return null;
+  }
 }
 
 function serveStatic(pathname: string) {
@@ -196,6 +238,27 @@ const server = serve({
       return Response.json({ tree });
     }
 
+    if (url.pathname === "/api/tree-events") {
+      let client: ReadableStreamDefaultController<Uint8Array> | undefined;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          client = controller;
+          treeEventClients.add(controller);
+          controller.enqueue(eventEncoder.encode(": connected\n\n"));
+        },
+        cancel() {
+          if (client) treeEventClients.delete(client);
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
+
     if (url.pathname === "/api/search") {
       const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
       const files: string[] = [];
@@ -207,7 +270,7 @@ const server = serve({
 
       const matches: string[] = [];
       for (const relPath of files) {
-        const resolved = safeResolveRoot(relPath);
+        const resolved = await safeResolveRoot(relPath);
         if (!resolved) continue;
         const text = await Bun.file(resolved).text();
         if (text.toLowerCase().includes(query)) {
@@ -216,6 +279,24 @@ const server = serve({
       }
 
       return Response.json({ matches });
+    }
+
+    if (url.pathname === "/api/asset") {
+      const relPath = url.searchParams.get("path");
+      if (!relPath) {
+        return new Response("Missing path", { status: 400 });
+      }
+      const resolved = await safeResolveRoot(relPath);
+      if (!resolved) {
+        return new Response("Forbidden", { status: 403 });
+      }
+      const file = Bun.file(resolved);
+      if (!await file.exists()) {
+        return new Response("Not found", { status: 404 });
+      }
+      return new Response(file, {
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+      });
     }
 
     if (url.pathname === "/api/render") {
@@ -227,7 +308,7 @@ const server = serve({
         return new Response("Not a markdown file", { status: 400 });
       }
 
-      const resolved = safeResolveRoot(relPath);
+      const resolved = await safeResolveRoot(relPath);
       if (!resolved) {
         return new Response("Forbidden", { status: 403 });
       }
