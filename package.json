@@ -1,6 +1,6 @@
 {
   "name": "notae",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "A local browser for Markdown collections",
   "type": "module",
