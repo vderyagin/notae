@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notæ</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" id="sidebar">
+        <div class="search">
+          <input id="search" type="search" placeholder="Search all markdown..." autocomplete="off" />
+          <div id="status" class="status"></div>
+        </div>
+        <div id="tree" class="tree"></div>
+        <div id="toc-resize-handle" class="toc-resize-handle hidden"></div>
+        <div id="toc" class="toc hidden">
+          <div class="toc-header">Headings</div>
+          <div id="toc-list" class="toc-list"></div>
+        </div>
+      </aside>
+      <div class="resize-handle" id="resize-handle"></div>
+      <main class="viewer">
+        <article id="content" class="content">
+          <div class="empty-state">
+            <div class="empty-title">Nothing selected</div>
+            <div class="empty-sub">Pick a markdown file from the sidebar.</div>
+          </div>
+        </article>
+      </main>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "notae",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A local browser for Markdown collections",
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.ts",
+    "dev": "bun --watch run server.ts"
+  }
+}
