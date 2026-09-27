@@ -805,6 +805,8 @@ mark.search-hit {
 
   .viewer {
     min-height: 0;
+    overflow: visible;
+    overscroll-behavior: auto;
   }
 
   .content {

@@ -22,6 +22,7 @@ const contentEl = mustElement<HTMLElement>("#content");
 const viewerEl = mustElement<HTMLElement>(".viewer");
 const tocEl = mustElement<HTMLElement>("#toc");
 const tocListEl = mustElement<HTMLElement>("#toc-list");
+const narrowLayout = window.matchMedia("(max-width: 900px)");
 
 let fullTree: TreeNode[] = [];
 let filteredTree: TreeNode[] = [];
@@ -209,7 +210,8 @@ async function openFile(path: string, options: OpenFileOptions = {}) {
     contentEl.innerHTML = data.html || "<p>No content.</p>";
     prepareDocument(path, generation);
     renderTree();
-    viewerEl.scrollTop = 0;
+    if (narrowLayout.matches) window.scrollTo(0, 0);
+    else viewerEl.scrollTop = 0;
 
     const heading = contentEl.querySelector("h1, h2, h3, h4, h5, h6");
     const fallbackTitle = (path.split("/").pop() ?? path).replace(/\.(?:md|markdown)$/i, "");
@@ -890,13 +892,14 @@ function flashHeading(heading: HTMLElement) {
 }
 
 function jumpToHeading(heading: HTMLElement, smooth = true) {
-  const targetTop =
-    heading.getBoundingClientRect().top -
-    viewerEl.getBoundingClientRect().top +
-    viewerEl.scrollTop -
-    16;
+  const targetTop = narrowLayout.matches
+    ? heading.getBoundingClientRect().top + window.scrollY - 16
+    : heading.getBoundingClientRect().top -
+      viewerEl.getBoundingClientRect().top +
+      viewerEl.scrollTop -
+      16;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  viewerEl.scrollTo({
+  (narrowLayout.matches ? window : viewerEl).scrollTo({
     top: targetTop,
     behavior: smooth && !reduceMotion ? "smooth" : "auto",
   });
@@ -919,7 +922,9 @@ function jumpToHash(hash: string, smooth = true) {
 function updateTocState() {
   const links = Array.from(tocListEl.querySelectorAll<HTMLAnchorElement>("a[data-index]"));
   if (!links.length) return;
-  const viewerBox = viewerEl.getBoundingClientRect();
+  const viewerBox = narrowLayout.matches
+    ? { top: 0, bottom: window.innerHeight }
+    : viewerEl.getBoundingClientRect();
   let activeIndex = 0;
   tocHeadings.forEach((heading, index) => {
     const box = heading.getBoundingClientRect();
@@ -1037,6 +1042,7 @@ window.addEventListener("popstate", (event) => {
 });
 
 viewerEl.addEventListener("scroll", scheduleTocUpdate, { passive: true });
+window.addEventListener("scroll", scheduleTocUpdate, { passive: true });
 window.addEventListener("resize", scheduleTocUpdate, { passive: true });
 
 type ResizerOptions = {
