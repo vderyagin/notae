@@ -323,6 +323,7 @@ body.app-resizing {
   overflow: auto;
   background: #fff;
   overscroll-behavior: contain;
+  container-type: inline-size;
 }
 
 .content {
@@ -531,8 +532,14 @@ body.app-resizing {
 }
 
 .markdown-table-wrapper {
-  max-width: 100%;
+  --table-gutter: 2em;
+  position: relative;
+  left: 50%;
+  width: max-content;
+  min-width: 100%;
+  max-width: calc(100cqw - 2 * var(--table-gutter));
   overflow-x: auto;
+  transform: translateX(-50%);
 }
 
 .markdown-table-wrapper table {
@@ -812,6 +819,10 @@ mark.search-hit {
   .content {
     width: calc(100% - 2em);
     margin: 1em auto;
+  }
+
+  .markdown-table-wrapper {
+    --table-gutter: 1em;
   }
 
   .resize-handle {

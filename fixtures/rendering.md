@@ -34,6 +34,13 @@ The drawer should have a bordered surface and a distinct summary bar.
 The headers sort in both directions. Their right edges can be dragged or moved
 with the arrow keys while the separator has focus.
 
+## Wide table
+
+| Identifier | Description                                                         | Owner         | Status      | Created    | Updated    | Tags                      | Notes                                                  |
+| :--------- | :------------------------------------------------------------------ | :------------ | :---------- | :--------- | :--------- | :------------------------ | :----------------------------------------------------- |
+| NT-001     | A deliberately long description that keeps the column from wrapping | Documentation | In progress | 2026-01-04 | 2026-09-12 | rendering, tables, layout | Tables wider than the text column use the viewer width |
+| NT-002     | Short                                                               | Tooling       | Done        | 2026-02-17 | 2026-03-01 | build                     | Still centered on the text column                      |
+
 ## Highlighted code
 
 ```javascript
