@@ -687,6 +687,7 @@ async function renderMermaidDiagrams(generation: number) {
       const updateView = () => {
         renderedSvg.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
       };
+      const resetView = () => Object.assign(view, { scale: 1, x: 0, y: 0 });
 
       viewport.addEventListener("pointerdown", (event) => {
         if (event.button !== 0) return;
@@ -730,12 +731,7 @@ async function renderMermaidDiagrams(generation: number) {
             view.scale = Math.max(0.2, +(view.scale - 0.1).toFixed(1));
           },
         ],
-        [
-          "Reset view",
-          "reset",
-          mermaidIcons.reset,
-          () => Object.assign(view, { scale: 1, x: 0, y: 0 }),
-        ],
+        ["Reset view", "reset", mermaidIcons.reset, resetView],
       ];
       navigationControls.forEach(([label, className, icon, action]) => {
         const control = makeMermaidControl(label, `markdown-mermaid-${className}`, icon);
@@ -804,7 +800,8 @@ async function renderMermaidDiagrams(generation: number) {
       expand.addEventListener("click", () => {
         marker = document.createComment("Mermaid diagram position");
         diagram.before(marker);
-        dialog.append(close, diagram);
+        actions.append(close);
+        dialog.append(diagram);
         document.body.append(dialog);
         dialog.showModal();
         close.focus();
@@ -814,6 +811,9 @@ async function renderMermaidDiagrams(generation: number) {
         if (event.target === dialog) dialog.close();
       });
       dialog.addEventListener("close", () => {
+        close.remove();
+        resetView();
+        updateView();
         if (marker?.isConnected) marker.replaceWith(diagram);
         dialog.remove();
       });

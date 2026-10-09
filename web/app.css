@@ -720,13 +720,13 @@ body.markdown-resizing-columns {
 
 .markdown-mermaid-dialog {
   box-sizing: border-box;
-  width: min(96vw, 1400px);
+  width: 100vw;
   max-width: none;
-  height: 92vh;
+  height: 100dvh;
   max-height: none;
-  padding: 2.75em 1em 1em;
-  border: 1px solid #d1d9e0;
-  border-radius: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
   background-color: #fff;
 }
 
@@ -737,6 +737,8 @@ body.markdown-resizing-columns {
 .markdown-mermaid-dialog > .markdown-mermaid {
   height: 100%;
   margin: 0;
+  border: 0;
+  border-radius: 0;
 }
 
 .markdown-mermaid-dialog .markdown-mermaid-viewport {
@@ -744,12 +746,6 @@ body.markdown-resizing-columns {
 }
 .markdown-mermaid-dialog .markdown-mermaid-expand {
   display: none;
-}
-
-.markdown-mermaid-dialog-close {
-  position: absolute;
-  top: 0.5em;
-  right: 0.5em;
 }
 
 .markdown-heading-flash {
