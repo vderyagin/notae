@@ -29,8 +29,9 @@ cd /path/to/markdown
 bun /path/to/notæ/server.ts --port 8080
 ```
 
-The default port is `3000`. Notæ opens it in the default browser. Suppress that
-with `--no-open`:
+The default port is `3000`; when it is taken, Notæ tries the next ports up to
+`3019`. A port given with `--port` or `PORT` is used as is. Notæ opens the
+server in the default browser. Suppress that with `--no-open`:
 
 ```sh
 bun /path/to/notæ/server.ts --no-open

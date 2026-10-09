@@ -224,118 +224,138 @@ function openBrowser(url: string) {
   Bun.spawn(command, { stdout: "ignore", stderr: "ignore" });
 }
 
+const defaultPort = 3000;
+const defaultPortAttempts = 20;
+
 const options = parseArgs(process.argv.slice(2));
 const envPort = Number(process.env.PORT);
-const port =
+const requestedPort =
   options.port !== undefined
     ? options.port
     : Number.isInteger(envPort) && envPort > 0 && envPort < 65536
       ? envPort
-      : 3000;
+      : undefined;
 
-const server = serve({
-  port,
-  async fetch(req) {
-    const url = new URL(req.url);
+async function handleRequest(req: Request): Promise<Response> {
+  const url = new URL(req.url);
 
-    if (url.pathname === "/api/tree") {
-      const tree = await scanDir(rootDir, "");
-      return Response.json({ tree });
+  if (url.pathname === "/api/tree") {
+    const tree = await scanDir(rootDir, "");
+    return Response.json({ tree });
+  }
+
+  if (url.pathname === "/api/tree-events") {
+    let client: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        client = controller;
+        treeEventClients.add(controller);
+        controller.enqueue(eventEncoder.encode(": connected\n\n"));
+      },
+      cancel() {
+        if (client) treeEventClients.delete(client);
+      },
+    });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+      },
+    });
+  }
+
+  if (url.pathname === "/api/search") {
+    const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const files: string[] = [];
+    await listMarkdownFiles(rootDir, "", files);
+
+    if (!query) {
+      return Response.json({ matches: files });
     }
 
-    if (url.pathname === "/api/tree-events") {
-      let client: ReadableStreamDefaultController<Uint8Array> | undefined;
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          client = controller;
-          treeEventClients.add(controller);
-          controller.enqueue(eventEncoder.encode(": connected\n\n"));
-        },
-        cancel() {
-          if (client) treeEventClients.delete(client);
-        },
-      });
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "X-Accel-Buffering": "no",
-        },
-      });
-    }
-
-    if (url.pathname === "/api/search") {
-      const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
-      const files: string[] = [];
-      await listMarkdownFiles(rootDir, "", files);
-
-      if (!query) {
-        return Response.json({ matches: files });
-      }
-
-      const matches: string[] = [];
-      for (const relPath of files) {
-        const resolved = await safeResolveRoot(relPath);
-        if (!resolved) continue;
-        const text = await Bun.file(resolved).text();
-        if (text.toLowerCase().includes(query)) {
-          matches.push(relPath);
-        }
-      }
-
-      return Response.json({ matches });
-    }
-
-    if (url.pathname === "/api/asset") {
-      const relPath = url.searchParams.get("path");
-      if (!relPath) {
-        return new Response("Missing path", { status: 400 });
-      }
+    const matches: string[] = [];
+    for (const relPath of files) {
       const resolved = await safeResolveRoot(relPath);
-      if (!resolved) {
-        return new Response("Forbidden", { status: 403 });
-      }
-      const file = Bun.file(resolved);
-      if (!(await file.exists())) {
-        return new Response("Not found", { status: 404 });
-      }
-      return new Response(file, {
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-      });
-    }
-
-    if (url.pathname === "/api/render") {
-      const relPath = url.searchParams.get("path");
-      if (!relPath) {
-        return new Response("Missing path", { status: 400 });
-      }
-      if (!isMarkdown(relPath)) {
-        return new Response("Not a markdown file", { status: 400 });
-      }
-
-      const resolved = await safeResolveRoot(relPath);
-      if (!resolved) {
-        return new Response("Forbidden", { status: 403 });
-      }
-
+      if (!resolved) continue;
       const text = await Bun.file(resolved).text();
-      const html = Bun.markdown.html(text);
-      return Response.json({ html, path: relPath });
+      if (text.toLowerCase().includes(query)) {
+        matches.push(relPath);
+      }
     }
 
-    const staticResponse = tryServeStatic(url.pathname);
-    if (staticResponse) {
-      return staticResponse;
+    return Response.json({ matches });
+  }
+
+  if (url.pathname === "/api/asset") {
+    const relPath = url.searchParams.get("path");
+    if (!relPath) {
+      return new Response("Missing path", { status: 400 });
+    }
+    const resolved = await safeResolveRoot(relPath);
+    if (!resolved) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    const file = Bun.file(resolved);
+    if (!(await file.exists())) {
+      return new Response("Not found", { status: 404 });
+    }
+    return new Response(file, {
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+    });
+  }
+
+  if (url.pathname === "/api/render") {
+    const relPath = url.searchParams.get("path");
+    if (!relPath) {
+      return new Response("Missing path", { status: 400 });
+    }
+    if (!isMarkdown(relPath)) {
+      return new Response("Not a markdown file", { status: 400 });
     }
 
-    if (isMarkdown(url.pathname)) {
-      return serveStatic("/");
+    const resolved = await safeResolveRoot(relPath);
+    if (!resolved) {
+      return new Response("Forbidden", { status: 403 });
     }
 
-    return new Response("Not found", { status: 404 });
-  },
-});
+    const text = await Bun.file(resolved).text();
+    const html = Bun.markdown.html(text);
+    return Response.json({ html, path: relPath });
+  }
 
+  const staticResponse = tryServeStatic(url.pathname);
+  if (staticResponse) {
+    return staticResponse;
+  }
+
+  if (isMarkdown(url.pathname)) {
+    return serveStatic("/");
+  }
+
+  return new Response("Not found", { status: 404 });
+}
+
+function startServer() {
+  const firstPort = requestedPort ?? defaultPort;
+  const lastPort = requestedPort ?? defaultPort + defaultPortAttempts - 1;
+  for (let port = firstPort; port <= lastPort; port += 1) {
+    try {
+      return serve({ port, fetch: handleRequest });
+    } catch (error) {
+      if ((error as { code?: string }).code !== "EADDRINUSE") throw error;
+      console.log(`Port ${port} is in use`);
+    }
+  }
+  console.error(
+    requestedPort === undefined
+      ? `Ports ${firstPort}-${lastPort} are all in use; pick one with --port`
+      : "Pick another port with --port",
+  );
+  process.exit(1);
+}
+
+const server = startServer();
 server.ref();
 const url = server.url.toString().replace(/\/$/, "");
 console.log(`Notæ running on ${url}`);
