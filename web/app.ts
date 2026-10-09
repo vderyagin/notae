@@ -34,6 +34,7 @@ let mermaidSequence = 0;
 let tocHeadings: HTMLHeadingElement[] = [];
 let tocUpdateScheduled = false;
 const collapsedDirectoryStorageKey = "notae:collapsed-directories";
+const sidebarHiddenStorageKey = "notae:sidebar-hidden";
 const collapsedDirectories = loadCollapsedDirectories();
 
 mermaid.initialize({
@@ -660,6 +661,98 @@ function makeMermaidControl(
   return control;
 }
 
+type MermaidGraph = {
+  nodes: Map<Element, string>;
+  elements: Map<string, Element[]>;
+  edges: Array<{ start: string; end: string; elements: Element[] }>;
+};
+
+async function buildMermaidGraph(svg: SVGSVGElement, sourceText: string): Promise<MermaidGraph> {
+  const graph: MermaidGraph = { nodes: new Map(), elements: new Map(), edges: [] };
+  const addNode = (id: string, element: Element) => {
+    element.setAttribute("data-mermaid-node", "");
+    graph.nodes.set(element, id);
+    graph.elements.set(id, [...(graph.elements.get(id) ?? []), element]);
+  };
+  const addEdge = (start: string, end: string, elements: Element[]) => {
+    elements.forEach((element) => element.setAttribute("data-mermaid-edge", ""));
+    graph.edges.push({ start, end, elements });
+  };
+
+  if (svg.getAttribute("aria-roledescription") === "sequence") {
+    svg
+      .querySelectorAll<SVGElement>('[data-et="participant"][data-id]')
+      .forEach((element) => addNode(element.dataset.id ?? "", element));
+    svg.querySelectorAll("rect.actor-bottom[name]").forEach((element) => {
+      if (element.parentElement) addNode(element.getAttribute("name") ?? "", element.parentElement);
+    });
+    svg
+      .querySelectorAll<SVGElement>('[data-et="message"][data-from][data-to]')
+      .forEach((element) =>
+        addEdge(element.dataset.from ?? "", element.dataset.to ?? "", [element]),
+      );
+    return graph;
+  }
+
+  type LayoutItem = { id?: string; start?: string; end?: string };
+  let layout: { nodes?: LayoutItem[]; edges?: LayoutItem[] } | undefined;
+  try {
+    const { db } = await mermaid.mermaidAPI.getDiagramFromText(sourceText);
+    layout = (db as { getData?: () => typeof layout }).getData?.();
+  } catch {
+    return graph;
+  }
+  if (!layout?.edges?.length) return graph;
+
+  const ids = new Set(
+    [
+      ...(layout.nodes ?? []).map(({ id }) => id),
+      ...layout.edges.flatMap(({ start, end }) => [start, end]),
+    ].filter((id): id is string => !!id),
+  );
+  const prefix = `${svg.id}-`;
+  svg.querySelectorAll("g.node[id], g.cluster[id]").forEach((element) => {
+    const domId = element.id.startsWith(prefix) ? element.id.slice(prefix.length) : element.id;
+    const id = ids.has(domId) ? domId : domId.match(/^[^-]+-(.+)-\d+$/)?.[1];
+    if (id && ids.has(id)) addNode(id, element);
+  });
+
+  const edgeElements = new Map<string, Element[]>();
+  svg
+    .querySelectorAll<SVGElement>("[data-edge][data-id], .edgeLabel [data-id]")
+    .forEach((element) => {
+      const id = element.dataset.id ?? "";
+      const target = element.closest(".edgeLabel") ?? element;
+      edgeElements.set(id, [...(edgeElements.get(id) ?? []), target]);
+    });
+  layout.edges.forEach(({ id, start, end }) => {
+    if (id && start && end) addEdge(start, end, edgeElements.get(id) ?? []);
+  });
+  return graph;
+}
+
+function selectMermaidNode(svg: SVGSVGElement, graph: MermaidGraph, id: string | null) {
+  svg
+    .querySelectorAll<SVGElement>("[data-mermaid-highlight]")
+    .forEach((element) => delete element.dataset.mermaidHighlight);
+  if (id === null) {
+    delete svg.dataset.mermaidSelection;
+    return;
+  }
+  svg.dataset.mermaidSelection = id;
+  const mark = (elements: Element[] | undefined, highlight: string) =>
+    elements?.forEach((element) => {
+      if (element instanceof SVGElement && !element.dataset.mermaidHighlight)
+        element.dataset.mermaidHighlight = highlight;
+    });
+  mark(graph.elements.get(id), "selected");
+  graph.edges.forEach(({ start, end, elements }) => {
+    if (start !== id && end !== id) return;
+    mark(elements, "edge");
+    mark(graph.elements.get(start === id ? end : start), "neighbor");
+  });
+}
+
 async function renderMermaidDiagrams(generation: number) {
   const sources = Array.from(
     contentEl.querySelectorAll<HTMLElement>("pre > code.language-mermaid"),
@@ -683,11 +776,27 @@ async function renderMermaidDiagrams(generation: number) {
       viewport.innerHTML = svg;
       const renderedSvg = viewport.querySelector<SVGSVGElement>("svg");
       if (!renderedSvg) throw new Error("Mermaid did not return an SVG");
+      const naturalWidth =
+        parseFloat(renderedSvg.style.maxWidth) || renderedSvg.viewBox.baseVal?.width;
+      if (naturalWidth) diagram.style.setProperty("--diagram-natural-width", `${naturalWidth}px`);
       const view = { scale: 1, x: 0, y: 0 };
       const updateView = () => {
         renderedSvg.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
       };
       const resetView = () => Object.assign(view, { scale: 1, x: 0, y: 0 });
+      const graph = await buildMermaidGraph(renderedSvg, sourceText);
+      if (generation !== renderGeneration || !source.isConnected) return;
+
+      const selectAt = (target: EventTarget | null) => {
+        let element = target instanceof Element ? target : null;
+        let nodeId: string | null = null;
+        while (element && element !== renderedSvg && nodeId === null) {
+          nodeId = graph.nodes.get(element) ?? null;
+          element = element.parentElement;
+        }
+        if (nodeId === renderedSvg.dataset.mermaidSelection) nodeId = null;
+        selectMermaidNode(renderedSvg, graph, nodeId);
+      };
 
       viewport.addEventListener("pointerdown", (event) => {
         if (event.button !== 0) return;
@@ -695,12 +804,17 @@ async function renderMermaidDiagrams(generation: number) {
         viewport.setPointerCapture(event.pointerId);
         viewport.dataset.panning = "";
         const origin = { x: event.clientX - view.x, y: event.clientY - view.y };
+        const pressedTarget = event.target;
+        let dragged = false;
         const move = (moveEvent: PointerEvent) => {
           view.x = moveEvent.clientX - origin.x;
           view.y = moveEvent.clientY - origin.y;
+          dragged ||=
+            Math.hypot(moveEvent.clientX - event.clientX, moveEvent.clientY - event.clientY) > 3;
           updateView();
         };
-        const finish = () => {
+        const finish = (finishEvent: PointerEvent) => {
+          if (finishEvent.type === "pointerup" && !dragged) selectAt(pressedTarget);
           delete viewport.dataset.panning;
           viewport.removeEventListener("pointermove", move);
           viewport.removeEventListener("pointerup", finish);
@@ -1088,6 +1202,31 @@ function installResizer(handle: HTMLElement, options: ResizerOptions) {
 }
 
 const sidebarEl = mustElement<HTMLElement>("#sidebar");
+const sidebarToggle = mustElement<HTMLButtonElement>("#sidebar-toggle");
+
+function setSidebarHidden(hidden: boolean) {
+  mustElement<HTMLElement>(".app").classList.toggle("sidebar-hidden", hidden);
+  const label = hidden ? "Show sidebar" : "Hide sidebar";
+  sidebarToggle.setAttribute("aria-expanded", String(!hidden));
+  sidebarToggle.setAttribute("aria-label", label);
+  sidebarToggle.title = label;
+}
+
+try {
+  setSidebarHidden(localStorage.getItem(sidebarHiddenStorageKey) === "true");
+} catch {
+  // The sidebar starts visible when storage is unavailable.
+}
+sidebarToggle.addEventListener("click", () => {
+  const hidden = sidebarToggle.getAttribute("aria-expanded") === "true";
+  setSidebarHidden(hidden);
+  try {
+    localStorage.setItem(sidebarHiddenStorageKey, String(hidden));
+  } catch {
+    // Hiding still works for the current page when storage is unavailable.
+  }
+});
+
 const sidebarResizeHandle = mustElement<HTMLElement>("#resize-handle");
 const tocResizeHandle = mustElement<HTMLElement>("#toc-resize-handle");
 installResizer(sidebarResizeHandle, {
